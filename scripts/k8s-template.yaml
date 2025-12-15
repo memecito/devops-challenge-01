@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ${SERVICE_NAME}
+  labels:
+    app: ${SERVICE_NAME}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ${SERVICE_NAME}
+  template:
+    metadata:
+      labels:
+        app: ${SERVICE_NAME}
+    spec:
+      containers:
+        - name: ${SERVICE_NAME}
+          image: ${IMAGE_NAME}
+          imagePullPolicy: Never
+          ports:
+            - containerPort: ${CONTAINER_PORT}
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: "docker,k8s"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ${SERVICE_NAME}
+spec:
+  selector:
+    app: ${SERVICE_NAME}
+  ports:
+    - protocol: TCP
+      port: ${EXTERNAL_PORT}
+      targetPort: ${CONTAINER_PORT}
+  type: ${SERVICE_TYPE}
