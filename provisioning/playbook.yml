@@ -1,0 +1,84 @@
+---
+- hosts: all
+  become: yes  # Ejecutar todo como root (sudo automático)
+  
+  tasks:
+    # 1. Instalación de Prerrequisitos
+    - name: Actualizar caché de apt
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Instalar paquetes base
+      apt:
+        name:
+          - curl
+          - git
+          - unzip
+          - gettext-base # Necesario para envsubst
+        state: present
+
+    # 2. Instalación de Java 17 y Maven
+    - name: Instalar OpenJDK 17 y Maven
+      apt:
+        name:
+          - openjdk-17-jdk
+          - maven
+        state: present
+
+    # 3. Instalación de Docker
+    - name: Instalar Docker
+      apt:
+        name: docker.io
+        state: present
+
+    - name: Añadir usuario vagrant al grupo docker
+      user:
+        name: vagrant
+        groups: docker
+        append: yes
+
+    # 4. Instalación de K3s (Kubernetes ligero)
+    - name: Descargar e instalar K3s
+      shell: curl -sfL https://get.k3s.io | sh -
+      args:
+        creates: /usr/local/bin/k3s # Si ya existe, no lo ejecuta
+
+    - name: Configurar permisos de K3s para el usuario vagrant
+      file:
+        path: /etc/rancher/k3s/k3s.yaml
+        mode: '0644'
+
+    # 5. EJECUCIÓN DEL PROYECTO (Tus scripts)
+    # Nota: Ejecutamos los scripts directamente.
+    # Asegúrate de que tus scripts build.sh y deploy.sh usan rutas relativas o absolutas correctas.
+    
+    - name: Dar permisos de ejecución a los scripts
+      file:
+        path: "/home/vagrant/app/{{ item }}"
+        mode: '0755'
+      loop:
+        - scripts/build.sh
+        - scripts/deploy-all.sh
+
+    - name: Compilar y Construir Imágenes (Puede tardar 10-15 mins)
+      shell: ./scripts/build.sh
+      args:
+        chdir: /home/vagrant/app # Ejecutar desde la carpeta del proyecto
+      environment:
+        # Evitar errores de terminal
+        TERM: xterm
+      # Esto permite ver el output mientras Vagrant corre
+      register: build_output
+
+    - name: Mostrar resultado del build
+      debug: 
+        var: build_output.stdout_lines
+
+    - name: Desplegar en K3s
+      shell: ./scripts/deploy-all.sh
+      args:
+        chdir: /home/vagrant/app
+      environment:
+        # Importante: Le decimos a kubectl dónde está la config (aunque K3s lo suele autodetectar)
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
