@@ -50,6 +50,14 @@
         mode: '0644'
 
     # 5. EJECUCIÓN DEL PROYECTO (Tus scripts)
+    # Clonar el repositorio (si no está ya clonado)
+    - name: Clonar el repositorio del proyecto
+      ansible.builtin.git:
+        repo: 'https://github.com/spring-petclinic/spring-petclinic-microservices.git'
+        dest: /home/vagrant/app
+        version: main
+        force: yes
+        update: no
     # Nota: Ejecutamos los scripts directamente.
     # Asegúrate de que tus scripts build.sh y deploy.sh usan rutas relativas o absolutas correctas.
     
