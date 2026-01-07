@@ -1,0 +1,4 @@
+.vagrant
+k8s-generated 
+*.jar
+jar-files/

@@ -17,7 +17,7 @@ spec:
       containers:
         - name: ${SERVICE_NAME}
           image: ${IMAGE_NAME}
-          imagePullPolicy: Never
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: ${CONTAINER_PORT}
           env:

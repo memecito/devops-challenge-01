@@ -37,56 +37,89 @@
         name: vagrant
         groups: docker
         append: yes
+    - name: Configurar Docker para permitir registro inseguro
+      copy:
+        dest: /etc/docker/daemon.json
+        content: |
+          {
+            "insecure-registries" : ["{{ ansible_default_ipv4.address }}:5000"]
+          }
+      notify: restart docker
 
-    # 4. Instalación de K3s (Kubernetes ligero)
+    # 4. Instalación de K3s 
     - name: Descargar e instalar K3s
-      shell: curl -sfL https://get.k3s.io | sh -
+      shell: curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--disable traefik" sh -
       args:
-        creates: /usr/local/bin/k3s # Si ya existe, no lo ejecuta
+        creates: /usr/local/bin/k3s
+      register: k3s_install
+      until: k3s_install is succeeded
+      retries: 3
+      delay: 10
+
+    - name: Esperar a que aparezca la configuración de K3s
+      wait_for:
+        path: /etc/rancher/k3s/k3s.yaml
+        state: present
+        timeout: 60
 
     - name: Configurar permisos de K3s para el usuario vagrant
       file:
         path: /etc/rancher/k3s/k3s.yaml
         mode: '0644'
+        owner: vagrant
 
-    # 5. EJECUCIÓN DEL PROYECTO (Tus scripts)
-    # Clonar el repositorio (si no está ya clonado)
-    - name: Clonar el repositorio del proyecto
-      ansible.builtin.git:
-        repo: 'https://github.com/spring-petclinic/spring-petclinic-microservices.git'
-        dest: /home/vagrant/app
-        version: main
-        force: yes
-        update: no
-    # Nota: Ejecutamos los scripts directamente.
-    # Asegúrate de que tus scripts build.sh y deploy.sh usan rutas relativas o absolutas correctas.
-    
-    - name: Dar permisos de ejecución a los scripts
-      file:
-        path: "/home/vagrant/app/{{ item }}"
-        mode: '0755'
-      loop:
-        - scripts/build.sh
-        - scripts/deploy-all.sh
+    # 5. Clonar el repositorio del proyecto
+    - name: Clonar repositorio del proyecto
+      git:
+        repo: 'https://github.com/memecito/petclinic-v3.git'      
+        dest: /home/vagrant/app 
+        version: main 
 
-    - name: Compilar y Construir Imágenes (Puede tardar 10-15 mins)
-      shell: ./scripts/build.sh
-      args:
-        chdir: /home/vagrant/app # Ejecutar desde la carpeta del proyecto
-      environment:
-        # Evitar errores de terminal
-        TERM: xterm
-      # Esto permite ver el output mientras Vagrant corre
-      register: build_output
-
-    - name: Mostrar resultado del build
-      debug: 
-        var: build_output.stdout_lines
-
-    - name: Desplegar en K3s
-      shell: ./scripts/deploy-all.sh
+    # 6. Construir la aplicación con Maven
+    - name: Construir la aplicación con Maven
+      shell: mvn clean package -DskipTests
       args:
         chdir: /home/vagrant/app
-      environment:
-        # Importante: Le decimos a kubectl dónde está la config (aunque K3s lo suele autodetectar)
-        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      register: maven_build
+      until: maven_build is succeeded
+      retries: 3
+      delay: 10
+
+    # 6.5 Preparar Python para Docker
+    - name: Instalar python3-docker
+      apt:
+        name: python3-docker
+        state: present
+
+    # 7. Crear un registro local de Docker
+    - name: Levantar registro Docker local
+      community.docker.docker_container:
+        name: registry
+        image: registry:2
+        state: started
+        restart_policy: always
+        published_ports:
+          - "0.0.0.0:5000:5000"
+
+    - name: Configurar K3s para el registro local por IP
+      copy:
+        dest: /etc/rancher/k3s/registries.yaml
+        content: |
+          mirrors:
+            "{{ ansible_default_ipv4.address }}:5000":
+              endpoint:
+                - "http://{{ ansible_default_ipv4.address }}:5000"
+            "localhost:5000":
+              endpoint:
+                - "http://{{ ansible_default_ipv4.address }}:5000"
+      notify: restart k3s
+  # SECCIÓN DE HANDLERS (Al mismo nivel que 'tasks')
+  handlers:
+    - name: restart k3s
+      service:
+        name: k3s
+        state: restarted
+    - name: restart docker
+      service:
+        name: docker
+        state: restarted

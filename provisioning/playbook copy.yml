@@ -1,0 +1,114 @@
+---
+- hosts: all
+  become: yes  # Ejecutar todo como root (sudo automático)
+  
+  tasks:
+    # 1. Instalación de Prerrequisitos
+    - name: Actualizar caché de apt
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Instalar paquetes base
+      apt:
+        name:
+          - curl
+          - git
+          - unzip
+          - gettext-base # Necesario para envsubst
+        state: present
+
+    # 2. Instalación de Java 17 y Maven
+    - name: Instalar OpenJDK 17 y Maven
+      apt:
+        name:
+          - openjdk-17-jdk
+          - maven
+        state: present
+
+    # 3. Instalación de Docker
+    - name: Instalar Docker
+      apt:
+        name: docker.io
+        state: present
+
+    - name: Añadir usuario vagrant al grupo docker
+      user:
+        name: vagrant
+        groups: docker
+        append: yes
+
+# 4. Instalación de K3s
+    - name: Descargar e instalar K3s
+      shell: curl -sfL https://get.k3s.io | sh -
+      args:
+        creates: /usr/local/bin/k3s
+      register: k3s_install
+      until: k3s_install is succeeded
+      retries: 3
+      delay: 10
+
+    - name: Esperar a que aparezca la configuración de K3s
+      wait_for:
+        path: /etc/rancher/k3s/k3s.yaml
+        state: present
+        timeout: 60
+
+    - name: Configurar permisos de K3s para el usuario vagrant
+      file:
+        path: /etc/rancher/k3s/k3s.yaml
+        mode: '0644'
+
+    # 5. EJECUCIÓN DEL PROYECTO
+    - name: Eliminar contenido previo para evitar conflictos
+      file:
+        path: /home/vagrant/app
+        state: absent
+
+    # - name: Clonar el repositorio del proyecto
+    #   ansible.builtin.git:
+    #    repo: 'https://github.com/memecito/petclinic-v3.git'
+    #    dest: /home/vagrant/app
+    #    version: main
+    #    force: yes
+
+    - name: Crear carpeta de jar-files en la VM
+      file:
+        path: /home/vagrant/app/jar-files
+        state: directory
+        mode: '0755'
+
+    - name: Copiar scripts y template desde el equipo local
+      copy:
+        # Usamos rutas relativas al playbook para que sea portable
+        src: "../{{ item.src }}" 
+        dest: "/home/vagrant/app/jar-files/{{ item.dest }}"
+        mode: "{{ item.mode }}"
+      loop:
+        - { src: 'jar-files/build.sh', dest: 'scripts/build.sh', mode: '0755' }
+        - { src: 'jar-files/deploy-all.sh', dest: 'scripts/deploy-all.sh', mode: '0755' }
+        - { src: 'jar-files/k8s-template.yaml', dest: 'k8s-template.yaml', mode: '0644' }
+
+    # - name: Compilar el proyecto con Maven (Generar archivos JAR)
+    #   shell: mvn clean package -DskipTests
+    #   args:
+    #     chdir: /home/vagrant/app
+    #   environment:
+    #     JAVA_HOME: /usr/lib/jvm/java-17-openjdk-amd64
+
+    - name: Compilar y Construir Imágenes
+      shell: ./scripts/build.sh
+      args:
+        chdir: /home/vagrant/app
+      register: build_output
+
+    - name: Mostrar resultado del build
+      debug: 
+        var: build_output.stdout_lines
+
+    - name: Desplegar en K3s
+      shell: ./scripts/deploy-all.sh
+      args:
+        chdir: /home/vagrant/app
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
