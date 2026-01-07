@@ -100,6 +100,6 @@ Nota: Debido a la naturaleza de Java/Spring, la aplicación puede tardar hasta 3
 
 ## 🛡️ Troubleshooting
 
-Si encuentras algún problema (errores de puerto, falta de RAM, o fallos en VirtualBox), consulta nuestra Guía de Solución de Problemas detallada.
+Si encuentras algún problema (errores de puerto, falta de RAM, o fallos en VirtualBox), consulta nuestra [Guía de Solución de Problemas detallada](./common-mistake.md).
 
 Desarrollado por memecito - 2026
