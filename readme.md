@@ -63,8 +63,9 @@ El despliegue está totalmente automatizado a través del ciclo de vida de Vagra
 
 Clonar el repositorio:
 
-git clone [https://github.com/memecito/devops-challenge-01.git](https://github.com/memecito/devops-challenge-01.git)
-cd petclinic-k8s-automation
+`git clone https://github.com/memecito/devops-challenge-01.git`
+
+`cd petclinic-k8s-automation`
 
 
 Lanzar la infraestructura:
@@ -78,6 +79,7 @@ Verificar el estado (opcional):
 Puedes entrar en la máquina para monitorizar el arranque de los pods:
 
 `vagrant ssh`
+
 `watch kubectl get pods`
 
 
