@@ -14,10 +14,10 @@ Vagrant.configure("2") do |config|
 
   config.vm.provider "virtualbox" do |vb|
     vb.name = "petclinic-k3s-final"
-    vb.memory = "8192"
+    vb.memory = "6144"
     vb.cpus = 4
     # Optimización para evitar cuellos de botella en la construcción
-    vb.customize ["modifyvm", :id, "--vram", "128"]
+    vb.customize ["modifyvm", :id, "--vram", "64"]
   end
 
   # PASO 1: Configuración del Sistema con Ansible

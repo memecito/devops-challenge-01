@@ -2,8 +2,6 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: ${SERVICE_NAME}
-  labels:
-    app: ${SERVICE_NAME}
 spec:
   replicas: 1
   selector:
@@ -15,24 +13,30 @@ spec:
         app: ${SERVICE_NAME}
     spec:
       containers:
-        - name: ${SERVICE_NAME}
-          image: ${IMAGE_NAME}
-          imagePullPolicy: IfNotPresent
-          ports:
-            - containerPort: ${CONTAINER_PORT}
-          env:
-            - name: SPRING_PROFILES_ACTIVE
-              value: "docker,k8s"
+      - name: ${SERVICE_NAME}
+        image: ${IMAGE_NAME}
+        ports:
+        - containerPort: ${CONTAINER_PORT}
+        env:
+        - name: JAVA_OPTS
+          value: "-Xmx384m -Xms256m -XX:MaxMetaspaceSize=128m" 
+        resources:
+          requests:
+            memory: "300Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi" # Ningún pod podrá pasar de 512MB
+            cpu: "500m"
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: ${SERVICE_NAME}
 spec:
+  type: ${SERVICE_TYPE}
   selector:
     app: ${SERVICE_NAME}
   ports:
-    - protocol: TCP
-      port: ${EXTERNAL_PORT}
-      targetPort: ${CONTAINER_PORT}
-  type: ${SERVICE_TYPE}
+  - protocol: TCP
+    port: ${EXTERNAL_PORT}
+    targetPort: ${CONTAINER_PORT}

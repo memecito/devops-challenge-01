@@ -65,5 +65,7 @@ done
 
 echo "🧹 Limpieza final..."
 docker image prune -f
+echo "🧹 Limpieza de sistema..."
+docker system prune -f
 echo "🏁 Proceso completado exitosamente."
 echo "$IP_VM"

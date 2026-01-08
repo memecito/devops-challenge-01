@@ -53,7 +53,7 @@ Para ejecutar este proyecto, tu máquina local debe tener:
 
 - VirtualBox
 
-- Hardware: Mínimo 12GB de RAM total (la VM utiliza 8GB) y 4 núcleos de CPU.
+- Hardware: Mínimo 12GB de RAM total (la VM utiliza 6GB) y 4 núcleos de CPU.
 
 - Plugins: vagrant plugin install vagrant-disksize.
 
@@ -86,15 +86,11 @@ Puedes entrar en la máquina para monitorizar el arranque de los pods:
 Una vez que los servicios estén en estado 1/1 Running, abre tu navegador en las siguientes URLs:
 
 | Servicio | URL | Credenciales |
-| :----| :---- | :----|
-
-|🐾 Aplicación Web | http://192.168.56.20 | -|
-
-| 📈 Grafana | http://192.168.56.20:3000 |admin / admin|
-
-|🔬 Prometheus | http://192.168.56.20:9090 | - |
-
-| 📡 Eureka Dashboard | http://192.168.56.20:8761 | -| 
+| ----| ---- | ----|
+| 🐾 Aplicación Web | http://192.168.56.20 | - |
+| 📈 Grafana | http://192.168.56.20:3000 | admin / admin |
+| 🔬 Prometheus | http://192.168.56.20:9090 | - |
+| 📡 Eureka Dashboard | http://192.168.56.20:8761 | - | 
 
 Nota: Debido a la naturaleza de Java/Spring, la aplicación puede tardar hasta 3-5 minutos en estar totalmente disponible tras el arranque inicial.
 
