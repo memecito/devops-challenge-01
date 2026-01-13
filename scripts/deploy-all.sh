@@ -46,6 +46,30 @@ deploy_wave() {
     done
 }
 
+deploy_monitoring() {
+    local TOOLS=("$@")
+    for TOOL in "${TOOLS[@]}"
+    do
+        export SERVICE_NAME=$TOOL
+        # Imagen sin prefijo: ej. prometheus o grafana
+        export IMAGE_NAME="$IP_VM:5000/${TOOL}:${VERSION}"
+
+        echo "📊 Configurando herramienta de monitoreo: $TOOL"
+
+        if [[ "$TOOL" == "prometheus" ]]; then
+            export CONTAINER_PORT=9090 && export SERVICE_TYPE="ClusterIP" && export EXTERNAL_PORT=9090
+        elif [[ "$TOOL" == "grafana" ]]; then
+            export CONTAINER_PORT=3000 && export SERVICE_TYPE="NodePort" && export EXTERNAL_PORT=3000
+        fi
+
+        echo "⚙️  Generando YAML: k8s-generated/$TOOL.yaml"
+        envsubst < k8s-template.yaml > k8s-generated/$TOOL.yaml
+        
+        echo "📦 Aplicando en k3s: $TOOL..."
+        kubectl apply -f k8s-generated/$TOOL.yaml
+    done
+}
+
 
 # Desplegar oleadas en orden
 echo "🚀 Desplegando Microservicios en Oleadas..."
@@ -58,7 +82,7 @@ sleep 15
 
 deploy_wave "${WAVE_3[@]}"
 deploy_wave "${WAVE_4[@]}"
-deploy_wave "${WAVE_5[@]}"
+deploy_monitoring "${WAVE_5[@]}"
 
 
 # Ahora los nombres son los "reales" que espera Spring Cloud
