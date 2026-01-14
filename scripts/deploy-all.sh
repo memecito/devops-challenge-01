@@ -51,15 +51,16 @@ deploy_monitoring() {
     for TOOL in "${TOOLS[@]}"
     do
         export SERVICE_NAME=$TOOL
-        # Imagen sin prefijo: ej. prometheus o grafana
         export IMAGE_NAME="$IP_VM:5000/${TOOL}:${VERSION}"
 
         echo "📊 Configurando herramienta de monitoreo: $TOOL"
 
         if [[ "$TOOL" == "prometheus" ]]; then
+            # Prometheus suele ser interno, pero si lo quieres externo cambia a LoadBalancer
             export CONTAINER_PORT=9090 && export SERVICE_TYPE="ClusterIP" && export EXTERNAL_PORT=9090
         elif [[ "$TOOL" == "grafana" ]]; then
-            export CONTAINER_PORT=3000 && export SERVICE_TYPE="NodePort" && export EXTERNAL_PORT=3000
+            # CAMBIO CRUCIAL: Usamos LoadBalancer para que K3s lo exponga en el puerto 3000 de la IP de la VM
+            export CONTAINER_PORT=3000 && export SERVICE_TYPE="LoadBalancer" && export EXTERNAL_PORT=3000
         fi
 
         echo "⚙️  Generando YAML: k8s-generated/$TOOL.yaml"
