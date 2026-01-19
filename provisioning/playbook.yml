@@ -1,16 +1,14 @@
 ---
 - hosts: all
-  become: yes  # Ejecutar todo como root (sudo automático)
-  
+  become: yes
+
   tasks:
-    # PREPRATION OF S.O.
-    # Upload System
-    - name: Upgrade all package
+    # --- PREPARACIÓN DEL S.O. ---
+    - name: Upgrade all packages
       ansible.builtin.dnf:
         name: "*"
         state: latest
 
-    #Config Firewall
     - name: Open firewall ports
       ansible.builtin.firewalld:
         port: "{{ item }}"
@@ -19,37 +17,29 @@
         immediate: yes
       loop:
         - 8080/tcp   # Jenkins
-        - 5000/tcp   # Docker Registry
-        - 6443/tcp   # K3s API Server
-        - 80/tcp     # HTTP
-        - 443/tcp    # HTTPS
+        - 5000/tcp   # Registry
+        - 6443/tcp   # K3s API
+        - 80/tcp
+        - 443/tcp
+        - 30000-32767/tcp # Rango NodePort de K8s
 
-    # INSTALACION DE MOTORES
-
-    - name: Instalar paquetes base
+    # --- INSTALACIÓN DE MOTORES (PODMAN) ---
+    - name: Instalar Podman y herramientas base
       ansible.builtin.dnf:
         name:
           - curl
           - git
           - unzip
-          - gettext-base # Necesario para envsubst
-        state: latest
+          - gettext
+          - podman
+          - podman-docker
+        state: present
 
-    #  Instalación de K3s 
+    # --- K3S ---
     - name: Descargar e instalar K3s
       shell: curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--disable traefik" sh -
       args:
         creates: /usr/local/bin/k3s
-      register: k3s_install
-      until: k3s_install is succeeded
-      retries: 3
-      delay: 10
-
-    - name: Esperar a que aparezca la configuración de K3s
-      wait_for:
-        path: /etc/rancher/k3s/k3s.yaml
-        state: present
-        timeout: 60
 
     - name: Configurar permisos de K3s para el usuario vagrant
       file:
@@ -57,77 +47,42 @@
         mode: '0644'
         owner: vagrant
 
-    # Instalación de Docker
-    - name: Instalar Docker
-      ansible.builtin.dnf:
-        name: docker.io
-        state: present
-
-    - name: Añadir usuario vagrant al grupo docker
-      user:
-        name: vagrant
-        groups: docker
-        append: yes
-    - name: Configurar Docker para permitir registro inseguro
-      copy:
-        dest: /etc/docker/daemon.json
-        content: |
-          {
-            "insecure-registries" : ["{{ ansible_default_ipv4.address }}:5000"]
-          }
-      notify: restart docker
-
-      # Crear un registro local de Docker
-    - name: Levantar registro Docker local
-      community.docker.docker_container:
+    # --- REGISTRO LOCAL CON PODMAN ---
+    # Nota: Podman no necesita daemon.json. Usamos un contenedor de registro.
+    - name: Levantar registro con Podman
+      containers.podman.podman_container:
         name: registry
         image: registry:2
         state: started
-        restart_policy: always
-        published_ports:
-          - "0.0.0.0:5000:5000"
+        recreate: yes
+        publishes:
+          - "5000:5000"
 
-    - name: Configurar K3s para el registro local por IP
-      copy:
-        dest: /etc/rancher/k3s/registries.yaml
-        content: |
-          mirrors:
-            "{{ ansible_default_ipv4.address }}:5000":
-              endpoint:
-                - "http://{{ ansible_default_ipv4.address }}:5000"
-            "localhost:5000":
-              endpoint:
-                - "http://{{ ansible_default_ipv4.address }}:5000"
-      notify: restart k3s
-
-   # Instalación de Java 17 y Maven
-    - name: Instalar OpenJDK 17 y Maven
+    # --- JAVA Y MAVEN (Nombres correctos para Rocky) ---
+    - name: Instalar Java 17 y Maven
       ansible.builtin.dnf:
         name:
-          - openjdk-17-jdk
+          - java-17-openjdk-devel
           - maven
         state: present
 
-    # HERRAMIENTAS DE GESTION
+    # --- HELM Y JENKINS ---
+    - name: Install Helm
+      shell: curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
 
-    # Install Helm
-    - name: Download and install Helm 
-      shell: curl -fsSl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
-
-    #  Preparar Python para Docker y Helm
-    - name: Instalar python3-docker
+    - name: Instalar dependencias de Python para K8s
       ansible.builtin.dnf:
-        name:
+        name: 
           - python3-pip
-          - python3-pyyaml 
-          - python3-docker
+          - python3-pyyaml
         state: present
 
-    # DESPLIEGUE DE APLICACIONES
+    - name: Instalar libreria kubernetes de python
+      pip:
+        name: kubernetes
 
-    # Install Jenkins
     - name: Add Jenkins repo
-      ansible.builtin.helm_repository:
+      kubernetes.core.helm_repository:
         name: jenkins
         repo_url: "https://charts.jenkins.io"
 
@@ -137,37 +92,7 @@
         chart_ref: jenkins/jenkins
         release_namespace: devops-tools
         create_namespace: true
+        kubeconfig: /etc/rancher/k3s/k3s.yaml
         values:
           controller:
-            serviceType: NodePort  # Para que puedas acceder desde fuera de la VM
-        kubeconfig: /etc/rancher/k3s/k3s.yaml # Ruta del config de K3s
-
-
-    # 5. Clonar el repositorio del proyecto
-    - name: Clonar repositorio del proyecto
-      git:
-        repo: 'https://github.com/memecito/petclinic-v3.git'      
-        dest: /home/vagrant/app 
-        version: main 
-
-    # 6. Construir la aplicación con Maven
-    - name: Construir la aplicación con Maven
-      shell: mvn clean package -DskipTests
-      args:
-        chdir: /home/vagrant/app
-      register: maven_build
-      until: maven_build is succeeded
-      retries: 3
-      delay: 10
-
-
-  # SECCIÓN DE HANDLERS (Al mismo nivel que 'tasks')
-  handlers:
-    - name: restart k3s
-      service:
-        name: k3s
-        state: restarted
-    - name: restart docker
-      service:
-        name: docker
-        state: restarted
+            serviceType: NodePort
