@@ -99,3 +99,11 @@
             adminPassword: "jenkins-1234" # Tu contraseña personalizada
             serviceType: NodePort
 
+    - name: Obtener el puerto de Jenkins
+      ansible.builtin.shell: kubectl get svc jenkins -n devops-tools -o jsonpath='{.spec.ports[0].nodePort}'
+      register: jenkins_port
+
+    - name: URL de acceso a Jenkins
+      ansible.builtin.debug:
+        msg: "Accede a Jenkins en: http://{{ ansible_default_ipv4.address }}:{{ jenkins_port.stdout }}"
+
