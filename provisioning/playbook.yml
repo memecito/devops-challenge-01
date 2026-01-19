@@ -4,23 +4,23 @@
   
   tasks:
     # 1. Instalación de Prerrequisitos
-    - name: Actualizar caché de apt
-      apt:
-        update_cache: yes
-        cache_valid_time: 3600
+    - name: Upgrade all package
+      ansible.builtin.dnf:
+        name: "*"
+        state: latest
 
     - name: Instalar paquetes base
-      apt:
+      ansible.builtin.dnf:
         name:
           - curl
           - git
           - unzip
           - gettext-base # Necesario para envsubst
-        state: present
+        state: latest
 
     # 2. Instalación de Java 17 y Maven
     - name: Instalar OpenJDK 17 y Maven
-      apt:
+      ansible.builtin.dnf:
         name:
           - openjdk-17-jdk
           - maven
@@ -28,7 +28,7 @@
 
     # 3. Instalación de Docker
     - name: Instalar Docker
-      apt:
+      ansible.builtin.dnf:
         name: docker.io
         state: present
 
