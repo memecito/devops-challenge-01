@@ -55,7 +55,7 @@
         image: registry:2
         state: started
         recreate: yes
-        publishes:
+        publish:
           - "5000:5000"
 
     # --- JAVA Y MAVEN (Nombres correctos para Rocky) ---
