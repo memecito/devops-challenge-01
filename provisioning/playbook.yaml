@@ -5,8 +5,9 @@
   vars:
     # Definimos las versiones como variables para facilitar su mantenimiento
     k3s_version: "v1.31.4+k3s1"      # Versión estable de K3s
-    helm_version: "v3.14.0"          # Versión de Helm
-    jenkins_chart_version: "5.7.0"   # Versión específica del Chart de Jenkins
+    helm_version: "v3.16.3"          # Versión de Helm
+    jenkins_chart_version: "5.8.122"   # Versión específica del Chart de Jenkins
+    jenkins_tag: "2.528.3-lts"        # Versión específica de Jenkins
     registry_image_tag: "2.8.3"      # Versión específica de la imagen del Registry
     kubeconfig_path: "/etc/rancher/k3s/k3s.yaml"
     # Esto permite que Vagrant o Terraform pasen un usuario distinto si fuera necesario
@@ -102,13 +103,20 @@
         mode: '0755'
         remote_src: yes
 
-    # - name: Instalar plugin helm-diff para mejor idempotencia
-    #   ansible.builtin.shell: |
-    #     helm plugin install https://github.com/databus23/helm-diff
-    #   register: helm_plugin_result
-    #   failed_when: 
-    #     - helm_plugin_result.rc != 0 
-    #     - "'already installed' not in helm_plugin_result.stderr"
+    - name: Asegurar que no hay restos de plugins corruptos
+      ansible.builtin.file:
+        path: "/root/.local/share/helm/plugins/helm-diff"
+        state: absent
+
+    - name: Instalar plugin helm-diff
+      ansible.builtin.shell: |
+        helm plugin install https://github.com/databus23/helm-diff
+      register: helm_plugin_result
+      # Esto evita que falle si por alguna razón el rastro persiste
+      failed_when: 
+        - helm_plugin_result.rc != 0 
+        - "'already installed' not in helm_plugin_result.stderr"
+      changed_when: "'Installed plugin' in helm_plugin_result.stdout"
 
     - name: Instalar dependencias de Python para K8s
       ansible.builtin.dnf:
@@ -138,6 +146,8 @@
         kubeconfig: /etc/rancher/k3s/k3s.yaml
         values:
           controller:
+            image:
+              tag: "{{ jenkins_tag }}"
             admin:
               username: "admin"
               password: "jenkins-1234" # Corregido typo 'passoword'
