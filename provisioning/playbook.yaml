@@ -152,7 +152,7 @@
               username: "admin"
               password: "jenkins-1234" # Corregido typo 'passoword'
             serviceType: NodePort
-            NodePort: 32195
+            nodeport: 32195
 
     - name: Obtener el puerto de Jenkins
       ansible.builtin.shell: |
