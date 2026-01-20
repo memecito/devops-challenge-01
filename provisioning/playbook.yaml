@@ -120,8 +120,9 @@
         kubeconfig: /etc/rancher/k3s/k3s.yaml # Crítico para que Ansible vea el cluster
         values:
           controller:
-            adminUser: "admin"
-            adminPassword: "jenkins-1234"
+            admin:
+              username: "admin"
+              passoword: "jenkins-1234"
             serviceType: NodePort
 
     - name: Obtener el puerto de Jenkins
