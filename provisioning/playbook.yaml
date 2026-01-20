@@ -2,9 +2,16 @@
 - hosts: all
   become: yes
 
+  vars:
+    # Definimos las versiones como variables para facilitar su mantenimiento
+    k3s_version: "v1.31.4+k3s1"      # Versión estable de K3s
+    helm_version: "v3.14.0"          # Versión de Helm
+    jenkins_chart_version: "5.7.0"   # Versión específica del Chart de Jenkins
+    registry_image_tag: "2.8.3"      # Versión específica de la imagen del Registry
+
   tasks:
     # --- PREPARACIÓN DEL S.O. ---
-    - name: Upgrade all packages
+    - name: Upgrade all packages (Security only)
       ansible.builtin.dnf:
         name: "*"
         state: latest
@@ -16,12 +23,12 @@
         state: enabled
         immediate: yes
       loop:
-        - 8080/tcp   # Jenkins
-        - 5000/tcp   # Registry
-        - 6443/tcp   # K3s API
-        - 80/tcp
-        - 443/tcp
-        - 30000-32767/tcp # Rango NodePort de K8s
+        - 8080/tcp         # Jenkins
+        - 5000/tcp         # Registry
+        - 6443/tcp         # K3s API
+        - 80/tcp           # HTTP
+        - 443/tcp          # HTTPS
+        - 30000-32767/tcp   # Rango NodePort de K8s
 
     # --- INSTALACIÓN DE MOTORES (PODMAN) ---
     - name: Instalar Podman y herramientas base
@@ -35,17 +42,18 @@
           - podman-docker
         state: present
 
-    # --- K3S ---
-    - name: Descargar e instalar K3s
-      shell: curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--disable traefik" sh -
+    # --- K3S (Versión Pinched) ---
+    - name: Descargar e instalar K3s con versión específica
+      ansible.builtin.shell: |
+        curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="{{ k3s_version }}" INSTALL_K3S_EXEC="--disable traefik" sh -
       args:
         creates: /usr/local/bin/k3s
 
-    - name: Configurar permisos de K3s para el usuario vagrant
-      file:
+    - name: Configurar permisos de K3s
+      ansible.builtin.file:
         path: /etc/rancher/k3s/k3s.yaml
         mode: '0644'
-        owner: user # cambiar a 'vagrant' cuando se use Vagrant
+        owner: "{{ ansible_user_id }}" # Asigna el dueño al usuario actual automáticamente
 
     - name: Crear symlink para kubectl
       ansible.builtin.file:
@@ -54,24 +62,21 @@
         state: link
 
     # --- REGISTRO LOCAL CON PODMAN ---
-
-    # Limpiar contenedor previo si existe
     - name: Eliminar contenedor previo del registro
       containers.podman.podman_container:
         name: registry
         state: absent
 
-    # Nota: Podman no necesita daemon.json. Usamos un contenedor de registro.
-    - name: Levantar registro con Podman
+    - name: Levantar registro con Podman (Versión Pinched)
       containers.podman.podman_container:
         name: registry
-        image: registry:2
+        image: "registry:{{ registry_image_tag }}"
         state: started
         recreate: yes
         publish:
           - "5000:5000"
 
-    # --- JAVA Y MAVEN (Nombres correctos para Rocky) ---
+    # --- JAVA Y MAVEN ---
     - name: Instalar Java 17 y Maven
       ansible.builtin.dnf:
         name:
@@ -80,16 +85,16 @@
         state: present
 
     # --- HELM Y JENKINS ---
-    - name: Descargar binario de Helm
+    - name: Descargar binario de Helm (Versión Pinched)
       ansible.builtin.unarchive:
-        src: https://get.helm.sh/helm-v3.14.0-linux-amd64.tar.gz # Usamos una versión estable
+        src: "https://get.helm.sh/helm-{{ helm_version }}-linux-amd64.tar.gz"
         dest: /tmp
         remote_src: yes
 
     - name: Mover Helm a /usr/bin
       ansible.builtin.copy:
         src: /tmp/linux-amd64/helm
-        dest: /usr/bin/helm # /usr/bin siempre está en el PATH de Rocky
+        dest: /usr/bin/helm
         mode: '0755'
         remote_src: yes
 
@@ -100,29 +105,30 @@
           - python3-pyyaml
         state: present
 
-    - name: Instalar libreria kubernetes de python
+    - name: Instalar librerías de python (Versiones Pinched)
       ansible.builtin.pip:
         name: 
-          - kubernetes
-          - jsonpatch
+          - kubernetes==31.0.0
+          - jsonpatch==1.33
 
     - name: Añadir repo de Helm de Jenkins
       kubernetes.core.helm_repository:
         name: jenkins
         repo_url: "https://charts.jenkins.io"
 
-    - name: Instalar Jenkins con Helm
+    - name: Instalar Jenkins con Helm (Versión del Chart Pinched)
       kubernetes.core.helm:
         name: jenkins
         chart_ref: jenkins/jenkins
+        chart_version: "{{ jenkins_chart_version }}" # <-- Esto evita cambios de sintaxis futuros
         release_namespace: devops-tools
         create_namespace: true
-        kubeconfig: /etc/rancher/k3s/k3s.yaml # Crítico para que Ansible vea el cluster
+        kubeconfig: /etc/rancher/k3s/k3s.yaml
         values:
           controller:
             admin:
               username: "admin"
-              passoword: "jenkins-1234"
+              password: "jenkins-1234" # Corregido typo 'passoword'
             serviceType: NodePort
 
     - name: Obtener el puerto de Jenkins
@@ -132,4 +138,4 @@
 
     - name: URL de acceso a Jenkins
       ansible.builtin.debug:
-        msg: "Accede a Jenkins en: http://{{ ansible_default_ipv4.address }}:{{ jenkins_port.stdout }} (User: admin / Pass: jenkins-1234)"
+        msg: "Acceso: http://{{ ansible_default_ipv4.address }}:{{ jenkins_port.stdout }} (Admin / jenkins-1234)"
