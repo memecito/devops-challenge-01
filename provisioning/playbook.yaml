@@ -47,6 +47,12 @@
         mode: '0644'
         owner: user # cambiar a 'vagrant' cuando se use Vagrant
 
+    - name: Crear symlink para kubectl
+      ansible.builtin.file:
+        src: /usr/local/bin/k3s
+        dest: /usr/bin/kubectl
+        state: link
+
     # --- REGISTRO LOCAL CON PODMAN ---
     # Nota: Podman no necesita daemon.json. Usamos un contenedor de registro.
     - name: Levantar registro con Podman
@@ -67,8 +73,18 @@
         state: present
 
     # --- HELM Y JENKINS ---
-    - name: Install Helm
-      shell: curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+    - name: Descargar binario de Helm
+      ansible.builtin.unarchive:
+        src: https://get.helm.sh/helm-v3.14.0-linux-amd64.tar.gz # Usamos una versión estable
+        dest: /tmp
+        remote_src: yes
+
+    - name: Mover Helm a /usr/bin
+      ansible.builtin.copy:
+        src: /tmp/linux-amd64/helm
+        dest: /usr/bin/helm # /usr/bin siempre está en el PATH de Rocky
+        mode: '0755'
+        remote_src: yes
 
     - name: Instalar dependencias de Python para K8s
       ansible.builtin.dnf:
@@ -78,10 +94,12 @@
         state: present
 
     - name: Instalar libreria kubernetes de python
-      pip:
-        name: kubernetes
+      ansible.builtin.pip:
+        name: 
+          - kubernetes
+          - jsonpatch
 
-    - name: Add Jenkins repo
+    - name: Añadir repo de Helm de Jenkins
       kubernetes.core.helm_repository:
         name: jenkins
         repo_url: "https://charts.jenkins.io"
@@ -92,11 +110,11 @@
         chart_ref: jenkins/jenkins
         release_namespace: devops-tools
         create_namespace: true
-        kubeconfig: /etc/rancher/k3s/k3s.yaml
+        kubeconfig: /etc/rancher/k3s/k3s.yaml # Crítico para que Ansible vea el cluster
         values:
           controller:
-            adminUser: "admin"          # Tu usuario personalizado
-            adminPassword: "jenkins-1234" # Tu contraseña personalizada
+            adminUser: "admin"
+            adminPassword: "jenkins-1234"
             serviceType: NodePort
 
     - name: Obtener el puerto de Jenkins
