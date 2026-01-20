@@ -102,13 +102,13 @@
         mode: '0755'
         remote_src: yes
 
-    - name: Instalar plugin helm-diff para mejor idempotencia
-      ansible.builtin.shell: |
-        helm plugin install https://github.com/databus23/helm-diff
-      register: helm_plugin_result
-      failed_when: 
-        - helm_plugin_result.rc != 0 
-        - "'already installed' not in helm_plugin_result.stderr"
+    # - name: Instalar plugin helm-diff para mejor idempotencia
+    #   ansible.builtin.shell: |
+    #     helm plugin install https://github.com/databus23/helm-diff
+    #   register: helm_plugin_result
+    #   failed_when: 
+    #     - helm_plugin_result.rc != 0 
+    #     - "'already installed' not in helm_plugin_result.stderr"
 
     - name: Instalar dependencias de Python para K8s
       ansible.builtin.dnf:
