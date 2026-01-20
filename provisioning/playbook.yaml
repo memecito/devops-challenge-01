@@ -54,6 +54,13 @@
         state: link
 
     # --- REGISTRO LOCAL CON PODMAN ---
+
+    # Limpiar contenedor previo si existe
+    - name: Eliminar contenedor previo del registro
+      containers.podman.podman_container:
+        name: registry
+        state: absent
+
     # Nota: Podman no necesita daemon.json. Usamos un contenedor de registro.
     - name: Levantar registro con Podman
       containers.podman.podman_container:
