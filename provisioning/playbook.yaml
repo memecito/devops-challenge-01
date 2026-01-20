@@ -5,7 +5,7 @@
   vars:
     # Definimos las versiones como variables para facilitar su mantenimiento
     k3s_version: "v1.31.4+k3s1"      # Versión estable de K3s
-    helm_version: "v3.16.3"          # Versión de Helm
+    helm_version: "v3.17.0"          # Versión de Helm
     jenkins_chart_version: "5.8.122"   # Versión específica del Chart de Jenkins
     jenkins_tag: "2.528.3-lts"        # Versión específica de Jenkins
     registry_image_tag: "2.8.3"      # Versión específica de la imagen del Registry
