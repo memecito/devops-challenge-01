@@ -123,21 +123,6 @@
         path: "/root/.local/share/helm/plugins/helm-diff"
         state: absent
 
-    # - name: Instalar plugin helm-diff
-    #   ansible.builtin.shell: |
-    #     helm plugin install https://github.com/databus23/helm-diff
-    #   register: helm_plugin_result
-    #   # Esto evita que falle si por alguna razón el rastro persiste
-    #   failed_when: 
-    #     - helm_plugin_result.rc != 0 
-    #     - "'already installed' not in helm_plugin_result.stderr"
-    #   changed_when: "'Installed plugin' in helm_plugin_result.stdout"
-
-    - name: Install plugin helm-diff
-      kubernetes.core.helm_plugin:
-        name: diff
-        state: present
-
     - name: Instalar dependencias de Python para K8s
       ansible.builtin.dnf:
         name: 
