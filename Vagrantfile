@@ -1,6 +1,6 @@
 Vagrant.configure("2") do |config|
-   config.vm.box = "rockylinux/9"
-   config.vm.box_version="6.0.0"
+   config.vm.box = "rockylinux/8"
+   config.vm.box_version="10.0.0"
 
   # Asegurar espacio en disco para las imágenes Docker y JARs
   if Vagrant.has_plugin?("vagrant-disksize")
