@@ -134,7 +134,7 @@
     #   changed_when: "'Installed plugin' in helm_plugin_result.stdout"
 
     - name: Install plugin helm-diff
-      community.general.helm_plugin:
+      kubernetes.core.helm_plugin:
         name: diff
         state: present
 
