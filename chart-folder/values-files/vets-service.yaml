@@ -1,0 +1,19 @@
+replicaCount: 1
+image: 
+  repository: localhost:5000/vets-service
+  tag: 0.0.1
+  pullPolicy: IfNotPresent
+service:
+  type: ClusterIP
+  port: 8080
+
+resources:
+  limits:
+    cpu: "500m"
+    memory: "512Mi"
+  requests:
+    cpu: "100m"
+    memory: "300Mi"
+
+env:
+  javaOpst: "-Xmx384m -Xms256m -XX:MaxMetaspaceSize=128m"
