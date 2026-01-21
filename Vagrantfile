@@ -22,6 +22,14 @@ Vagrant.configure("2") do |config|
   end
 
   # PASO 1: Configuración del Sistema con Ansible
+  # Primer provisioner: Instala Ansible y las colecciones necesarias
+  config.vm.provision "shell", inline: <<-SHELL
+    sudo dnf install -y epel-release
+    sudo dnf install -y ansible-core
+    # Instalamos las colecciones para que estén listas cuando entre el siguiente provisioner
+    ansible-galaxy collection install kubernetes.core containers.podman
+  SHELL
+
   config.vm.provision "ansible" do |ansible|
     ansible.playbook = "provisioning/playbook.yml"
   end

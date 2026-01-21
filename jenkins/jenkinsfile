@@ -1,0 +1,83 @@
+pipeline {
+    agent any
+
+    environment {
+        REGISTRY = "localhost:5000"
+        VERSION = "0.0.1"
+        NAMESPACE = "devops-tools"
+        APP_PATH = "app"
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                // Clonamos tu repositorio (ajusta la URL)
+                git branch: 'main', url: 'https://github.com/tu-usuario/spring-petclinic-microservices.git'
+            }
+        }
+
+        stage('Maven Build') {
+            steps {
+                sh 'mvn clean package -DskipTests'
+            }
+        }
+
+        stage('Podman Build & Push') {
+            steps {
+                script {
+                    def services = [
+                        'spring-petclinic-config-server',
+                        'spring-petclinic-discovery-server',
+                        'spring-petclinic-customers-service',
+                        'spring-petclinic-vets-service',
+                        'spring-petclinic-visits-service',
+                        'spring-petclinic-api-gateway',
+                        'spring-petclinic-admin-server'
+                    ]
+
+                    services.each { service ->
+                        def imageName = "${REGISTRY}/${service}:${VERSION}"
+                        echo "🏗️ Construyendo imagen con Podman: ${imageName}"
+                        
+                        // Usamos Podman en lugar de Docker
+                        sh "podman build -t ${imageName} -f ./docker/Dockerfile ./${service}"
+                        
+                        echo "🚀 Subiendo a Registro: ${imageName}"
+                        sh "podman push ${imageName} --tls-verify=false"
+                        
+                        // Limpieza local para no saturar la VM
+                        sh "podman rmi ${imageName}"
+                    }
+                }
+            }
+        }
+
+        stage('Helm Deploy') {
+            steps {
+                script {
+                    // Desplegamos cada servicio usando el mismo Chart Genérico
+                    // El nombre de la release será el nombre del microservicio
+                    sh """
+                    helm upgrade --install config-server ./helm/petclinic-service \\
+                        --namespace ${NAMESPACE} \\
+                        --set image.repository=${REGISTRY}/spring-petclinic-config-server \\
+                        --set service.port=8888 --set service.targetPort=8888
+                    
+                    helm upgrade --install discovery-server ./helm/petclinic-service \\
+                        --namespace ${NAMESPACE} \\
+                        --set image.repository=${REGISTRY}/spring-petclinic-discovery-server \\
+                        --set service.port=8761 --set service.targetPort=8761
+                    
+                    # Repetir para el resto de servicios...
+                    """
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            echo "Pipeline finalizado."
+        }
+    }
+}

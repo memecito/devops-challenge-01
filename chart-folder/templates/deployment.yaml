@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name}}
+spect:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: {{ .Release.Name}}
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name}}
+    spec:
+      containers:
+        - name: petclinic-container
+            image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+            ports:
+                - containerPort: {{ .Values.service.targetport }}
+            env:
+                - name: JAVA_OPTS
+                value: "{{ .Values.env.javaOpst | quote }}"
+            resources:
+                {{- toYaml .Values.resources | nindent 10 }}
