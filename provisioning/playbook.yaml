@@ -19,6 +19,7 @@
       ansible.builtin.dnf:
         name: "*"
         state: latest
+        security: yes
 
     - name: Open firewall ports
       ansible.builtin.firewalld:
@@ -56,15 +57,29 @@
     - name: Configurar permisos de K3s
       ansible.builtin.file:
         path: "{{ kubeconfig_path }}"
-        mode: '0644'
+        mode: '0600'
         owner: "{{ target_user }}" # Ahora es dinámico
 
+    - name: Copy kubeconfig to user's home
+      ansible.builtin.copy:
+        src: "{{ kubeconfig_path }}"
+        dest: "/home/{{ target_user }}/.kube/config"
+        owner: "{{ target_user }}"
+        mode: '0600'
+      when: target_user != 'root'
 
     - name: Crear symlink para kubectl
       ansible.builtin.file:
         src: /usr/local/bin/k3s
         dest: /usr/bin/kubectl
         state: link
+
+    - name: Waith to K3s API to be available
+      ansible.builtin.command: kubectl get nodes
+      retries: 10
+      delay: 6
+      register: result 
+      until: result.rc == 0
 
     # --- REGISTRO LOCAL CON PODMAN ---
     - name: Eliminar contenedor previo del registro
@@ -117,6 +132,11 @@
     #     - helm_plugin_result.rc != 0 
     #     - "'already installed' not in helm_plugin_result.stderr"
     #   changed_when: "'Installed plugin' in helm_plugin_result.stdout"
+
+    - name: Install plugin helm-diff
+      community.general.helm_plugin:
+        name: diff
+        state: present
 
     - name: Instalar dependencias de Python para K8s
       ansible.builtin.dnf:
