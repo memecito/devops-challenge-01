@@ -46,6 +46,12 @@
           - podman-docker
         state: present
 
+    - name: Clonar el repositorio del proyecto
+      ansible.builtin.git:
+        repo: 'https://github.com/memecito/devops-challenge-01.git'
+        dest: /home/vagrant/reto-petclinic
+        version: master
+
     # --- K3S (Versión Pinched) ---
     - name: Descargar e instalar K3s con versión específica
       ansible.builtin.shell: |
