@@ -15,10 +15,19 @@
 
   tasks:
     # --- PREPARACIÓN DEL S.O. ---
-    - name: Upgrade all packages (Security only)
+
+
+    # --- Actualizacion ligera del sistema ---
+    - name: Updated only cache for DNF
       ansible.builtin.dnf:
-        name: "*"
-        state: latest
+        update_cache: yes
+
+
+    # --- Descomenta solo si tienes tiempo y potencial para actualizar todo ---
+    # - name: Upgrade all packages (Security only)
+    #   ansible.builtin.dnf:
+    #     name: "*"
+    #     state: latest
 
     - name: Open firewall ports
       ansible.posix.firewalld:
