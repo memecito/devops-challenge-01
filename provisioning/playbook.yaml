@@ -3,31 +3,20 @@
   become: yes
 
   vars:
-    # Definimos las versiones como variables para facilitar su mantenimiento
-    k3s_version: "v1.31.4+k3s1"      # Versión estable de K3s
-    helm_version: "v3.17.0"          # Versión de Helm
-    jenkins_chart_version: "5.8.122"   # Versión específica del Chart de Jenkins
-    jenkins_tag: "2.528.3-lts"        # Versión específica de Jenkins
-    registry_image_tag: "2.8.3"      # Versión específica de la imagen del Registry
+    k3s_version: "v1.31.4+k3s1"
+    helm_version: "v3.17.0"
+    jenkins_chart_version: "5.8.122"
+    jenkins_tag: "2.528.3-lts"
+    registry_image_tag: "2.8.3"
     kubeconfig_path: "/etc/rancher/k3s/k3s.yaml"
-    # Esto permite que Vagrant o Terraform pasen un usuario distinto si fuera necesario
     target_user: "{{ ansible_user | default(ansible_user_id) }}"
 
   tasks:
-    # --- PREPARACIÓN DEL S.O. ---
 
-
-    # --- Actualizacion ligera del sistema ---
+    # Comentar si la maquina es pobre
     - name: Updated only cache for DNF
       ansible.builtin.dnf:
         update_cache: yes
-
-
-    # --- Descomenta solo si tienes tiempo y potencial para actualizar todo ---
-    # - name: Upgrade all packages (Security only)
-    #   ansible.builtin.dnf:
-    #     name: "*"
-    #     state: latest
 
     - name: Open firewall ports
       ansible.posix.firewalld:
@@ -36,23 +25,16 @@
         state: enabled
         immediate: yes
       loop:
-        - 8080/tcp         # Jenkins
-        - 5000/tcp         # Registry
-        - 6443/tcp         # K3s API
-        - 80/tcp           # HTTP
-        - 443/tcp          # HTTPS
-        - 30000-32767/tcp   # Rango NodePort de K8s
+        - 8080/tcp
+        - 5000/tcp
+        - 6443/tcp
+        - 80/tcp
+        - 443/tcp
+        - 30000-32767/tcp
 
-    # --- INSTALACIÓN DE MOTORES (PODMAN) ---
     - name: Instalar Podman y herramientas base
       ansible.builtin.dnf:
-        name:
-          - curl
-          - git
-          - unzip
-          - gettext
-          - podman
-          - podman-docker
+        name: [curl, git, unzip, gettext, podman, podman-docker]
         state: present
 
     - name: Clonar el repositorio del proyecto
@@ -61,10 +43,9 @@
         dest: /home/vagrant/reto-petclinic
         version: master
 
-    # --- K3S (Versión Pinched) ---
-    - name: Descargar e instalar K3s con versión específica
+    - name: Descargar e instalar K3s
       ansible.builtin.shell: |
-        curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="{{ k3s_version }}" INSTALL_K3S_EXEC="--disable traefik" sh -
+        curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="{{ k3s_version }}" INSTALL_K3S_EXEC="--disable traefik --write-kubeconfig-mode 644" sh -
       args:
         creates: /usr/local/bin/k3s
 
@@ -72,8 +53,7 @@
       ansible.builtin.file:
         path: "{{ kubeconfig_path }}"
         mode: '0644'
-        owner: "{{ target_user }}" # Ahora es dinámico
-
+        owner: "{{ target_user }}"
 
     - name: Crear symlink para kubectl
       ansible.builtin.file:
@@ -81,31 +61,20 @@
         dest: /usr/bin/kubectl
         state: link
 
-    # --- REGISTRO LOCAL CON PODMAN ---
-    - name: Eliminar contenedor previo del registro
-      containers.podman.podman_container:
-        name: registry
-        state: absent
-
-    - name: Levantar registro con Podman (Versión Pinched)
+    - name: Levantar registro con Podman
       containers.podman.podman_container:
         name: registry
         image: "registry:{{ registry_image_tag }}"
         state: started
         recreate: yes
-        publish:
-          - "5000:5000"
+        publish: ["5000:5000"]
 
-    # --- JAVA Y MAVEN ---
     - name: Instalar Java 17 y Maven
       ansible.builtin.dnf:
-        name:
-          - java-17-openjdk-devel
-          - maven
+        name: [java-17-openjdk-devel, maven]
         state: present
 
-    # --- HELM Y JENKINS ---
-    - name: Descargar binario de Helm (Versión Pinched)
+    - name: Instalar Helm
       ansible.builtin.unarchive:
         src: "https://get.helm.sh/helm-{{ helm_version }}-linux-amd64.tar.gz"
         dest: /tmp
@@ -118,93 +87,85 @@
         mode: '0755'
         remote_src: yes
 
-    - name: Asegurar que no hay restos de plugins corruptos
-      ansible.builtin.file:
-        path: "/root/.local/share/helm/plugins/helm-diff"
-        state: absent
-
-    # - name: Instalar plugin helm-diff
-    #   ansible.builtin.shell: |
-    #     helm plugin install https://github.com/databus23/helm-diff
-    #   register: helm_plugin_result
-    #   # Esto evita que falle si por alguna razón el rastro persiste
-    #   failed_when: 
-    #     - helm_plugin_result.rc != 0 
-    #     - "'already installed' not in helm_plugin_result.stderr"
-    #   changed_when: "'Installed plugin' in helm_plugin_result.stdout"
-
     - name: Instalar dependencias de Python para K8s
       ansible.builtin.dnf:
-        name: 
-          - python3-pip
-          - python3-pyyaml
+        name: [python3-pip, python3-pyyaml]
         state: present
 
-    - name: Instalar librerías de python (Versiones Pinched)
+    - name: Instalar librerías de python (K8s)
       ansible.builtin.pip:
-        name: 
-          - kubernetes==31.0.0
-          - jsonpatch==1.33
+        name: [kubernetes==31.0.0, jsonpatch==1.33]
 
     - name: Añadir repo de Helm de Jenkins
       kubernetes.core.helm_repository:
         name: jenkins
         repo_url: "https://charts.jenkins.io"
 
-    - name: Instalar Jenkins con Helm (Versión del Chart Pinched)
+    - name: Instalar Jenkins con Helm y JCasC
       kubernetes.core.helm:
         name: jenkins
         chart_ref: jenkins/jenkins
-        chart_version: "{{ jenkins_chart_version }}" # <-- Esto evita cambios de sintaxis futuros
+        chart_version: "{{ jenkins_chart_version }}"
         release_namespace: devops-tools
         create_namespace: true
-        kubeconfig: /etc/rancher/k3s/k3s.yaml
+        kubeconfig: "{{ kubeconfig_path }}"
         values:
           controller:
+            resources:
+              requests:
+                cpu: "500m"
+                memory: "1024Mi"
+              limits:
+                cpu: "2000m"
+                memory: "4096Mi"
+            # Damos más tiempo para que arranque (importante en VirtualBox)
+            healthProbes:
+              initialDelaySeconds: 160
+              periodSeconds: 20
             image:
               tag: "{{ jenkins_tag }}"
             admin:
               username: "admin"
-              password: "jenkins-1234" # Corregido typo 'passoword'
+              password: "jenkins-1234"
             serviceType: NodePort
             nodePort: 32195
+            # Instalamos los plugins necesarios para que el pipeline no falle
+            installPlugins:
+              - "kubernetes:"
+              - "workflow-aggregator"
+              - "git"
+              - "job-dsl"
+              - "configuration-as-code"
+            JCasC:
+              enabled: true
+              defaultConfig: true
+              configScripts:
+                pipeline-job: |
+                  jobs:
+                    - script: >
+                        pipelineJob('petclinic-pipeline') {
+                          definition {
+                            cpsScm {
+                              scm {
+                                git {
+                                  remote {
+                                    url('https://github.com/memecito/devops-chagenge-01.git')
+                                  }
+                                  branches('master')
+                                }
+                              }
+                            }
+                          }
+                        }
 
-    - name: Crear directorios de configuración de Jenkins
-      ansible.builtin.file:
-        path: "{{ item }}"
-        state: directory
-        owner: jenkins
-        group: jenkins
-        mode: '0755'
-      loop:
-        - /var/lib/jenkins/init.groovy.d
-
-    - name: Copiar configuración de Jenkins as Code (JCasC)
-      ansible.builtin.copy:
-        src: jenkins.yaml
-        dest: /var/lib/jenkins/jenkins.yaml
-        owner: jenkins
-        group: jenkins
-        mode: '0644'
-
-    - name: Copiar Script de Inicialización Groovy
-      ansible.builtin.copy:
-        src: init_setup.groovy
-        dest: /var/lib/jenkins/init.groovy.d/init_setup.groovy
-        owner: jenkins
-        group: jenkins
-        mode: '0644'
-
-    - name: Reiniciar Jenkins para aplicar cambios
-      ansible.builtin.systemd:
-        name: jenkins
-        state: restarted
-
-    - name: Obtener el puerto de Jenkins
+    - name: Esperar a que el servicio de Jenkins esté listo y obtener puerto
       ansible.builtin.shell: |
-        kubectl get svc jenkins -n devops-tools --kubeconfig /etc/rancher/k3s/k3s.yaml -o jsonpath='{.spec.ports[0].nodePort}'
+        kubectl get svc jenkins -n devops-tools --kubeconfig {{ kubeconfig_path }} -o jsonpath='{.spec.ports[0].nodePort}'
       register: jenkins_port
+      until: jenkins_port.rc == 0
+      retries: 10
+      delay: 5
 
     - name: URL de acceso a Jenkins
       ansible.builtin.debug:
-        msg: "Acceso: http://{{ ansible_default_ipv4.address }}:{{ jenkins_port.stdout }} (Admin / jenkins-1234)"
+        msg: "Acceso: http://{{ ansible_default_ipv4.address }}:{{ jenkins_port.stdout }} (Usuario: admin / Pass: jenkins-1234)"
