@@ -21,7 +21,7 @@
         state: latest
 
     - name: Open firewall ports
-      ansible.builtin.firewalld:
+      ansible.posix.firewalld:
         port: "{{ item }}"
         permanent: yes
         state: enabled
@@ -159,6 +159,37 @@
               password: "jenkins-1234" # Corregido typo 'passoword'
             serviceType: NodePort
             nodePort: 32195
+
+    - name: Crear directorios de configuración de Jenkins
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: jenkins
+        group: jenkins
+        mode: '0755'
+      loop:
+        - /var/lib/jenkins/init.groovy.d
+
+    - name: Copiar configuración de Jenkins as Code (JCasC)
+      ansible.builtin.copy:
+        src: jenkins.yaml
+        dest: /var/lib/jenkins/jenkins.yaml
+        owner: jenkins
+        group: jenkins
+        mode: '0644'
+
+    - name: Copiar Script de Inicialización Groovy
+      ansible.builtin.copy:
+        src: init_setup.groovy
+        dest: /var/lib/jenkins/init.groovy.d/init_setup.groovy
+        owner: jenkins
+        group: jenkins
+        mode: '0644'
+
+    - name: Reiniciar Jenkins para aplicar cambios
+      ansible.builtin.systemd:
+        name: jenkins
+        state: restarted
 
     - name: Obtener el puerto de Jenkins
       ansible.builtin.shell: |

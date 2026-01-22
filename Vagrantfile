@@ -35,11 +35,12 @@ Vagrant.configure("2") do |config|
     sudo dnf install -y epel-release
     sudo dnf install -y ansible-core
     # Instalamos las colecciones para que estén listas cuando entre el siguiente provisioner
-    ansible-galaxy collection install kubernetes.core containers.podman
+    ansible-galaxy collection install kubernetes.core containers.podman ansible.posix -p /usr/share/ansible/collections
   SHELL
 
-  config.vm.provision "ansible" do |ansible|
+  config.vm.provision "ansible_local" do |ansible|
     ansible.playbook = "provisioning/playbook.yaml"
+    ansible.verbose = "v" # Modo verbose para más detalles en la salida
   end
 
   # # PASO 2: Construcción de Artefactos e Imágenes
