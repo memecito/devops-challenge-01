@@ -21,7 +21,7 @@
         state: latest
 
     - name: Open firewall ports
-      ansible.builtin.firewalld:
+      ansible.posix.firewalld:
         port: "{{ item }}"
         permanent: yes
         state: enabled
