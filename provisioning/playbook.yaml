@@ -18,6 +18,7 @@
       ansible.builtin.dnf:
         update_cache: yes
 
+    # Configurar el firewall
     - name: Open firewall ports
       ansible.posix.firewalld:
         port: "{{ item }}"
@@ -74,11 +75,16 @@
         name: [java-17-openjdk-devel, maven]
         state: present
 
+    # Descargar e instalar Helm
     - name: Instalar Helm
       ansible.builtin.unarchive:
         src: "https://get.helm.sh/helm-{{ helm_version }}-linux-amd64.tar.gz"
         dest: /tmp
         remote_src: yes
+      register: helm_download
+      until: helm_download is succeeded
+      retries: 3
+      delay: 5
 
     - name: Mover Helm a /usr/bin
       ansible.builtin.copy:
@@ -168,4 +174,4 @@
 
     - name: URL de acceso a Jenkins
       ansible.builtin.debug:
-        msg: "Acceso: http://{{ ansible_eth1_ipv4.address }}:{{ jenkins_port.stdout }} (Usuario: admin / Pass: jenkins-1234)"
+        msg: "Acceso: http://192.168.56.20:{{ jenkins_port.stdout }} (Usuario: admin / Pass: jenkins-1234)"
