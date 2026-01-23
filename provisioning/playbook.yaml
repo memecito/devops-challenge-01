@@ -168,4 +168,4 @@
 
     - name: URL de acceso a Jenkins
       ansible.builtin.debug:
-        msg: "Acceso: http://{{ ansible_default_ipv4.address }}:{{ jenkins_port.stdout }} (Usuario: admin / Pass: jenkins-1234)"
+        msg: "Acceso: http://{{ ansible_eth1_ipv4.address }}:{{ jenkins_port.stdout }} (Usuario: admin / Pass: jenkins-1234)"
